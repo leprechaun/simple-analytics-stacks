@@ -1,0 +1,47 @@
+[
+	{
+		"ParameterKey": "S3BucketRawAccessLogs",
+		"ParameterValue": "OTHER-STACK-NAME-raw-access-logs"
+	},
+
+	{
+		"ParameterKey": "S3BucketCleanedEvents",
+		"ParameterValue": "OTHER-STACK-NAME-cleaned-events"
+	},
+
+	{
+		"ParameterKey": "KinesisEventStream",
+		"ParameterValue": "OTHER-STACK-NAME-KinesisEventStream-EZWD9309QLZ9"
+	},
+
+	{
+		"ParameterKey": "ElasticsearchEndpoint",
+		"ParameterValue": "your-elasticsearch-cluster-endpoint:port"
+	},
+
+	{
+		"ParameterKey": "Subnets",
+		"ParameterValue": "subnet-xyz1234,subnet-abc4321"
+	},
+
+	{
+		"ParameterKey": "KeyName",
+		"ParameterValue": "my-ssh-key"
+	},
+
+	{
+		"ParameterKey": "ImageId",
+		"ParameterValue": "ami-48d38c2b"
+	},
+
+	{
+		"ParameterKey": "InstanceType",
+		"ParameterValue": "t2.small"
+	},
+
+	{
+		"ParameterKey": "VpcId",
+		"ParameterValue": "vpc-abcd1234"
+	}
+
+]

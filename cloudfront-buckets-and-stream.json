@@ -1,0 +1,93 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "Cloudfront distribution, S3 bucket and Kinesis streams",
+
+	"Resources": {
+		"S3BucketRawAccessLogs": {
+			"Type": "AWS::S3::Bucket",
+			"Properties" : {
+				"AccessControl" : "Private",
+				"BucketName" : {"Fn::Join": [ "-", [{"Ref":"AWS::StackName"},"raw-access-logs"] ]}
+			}
+		},
+
+		"S3BucketCleanedEvents": {
+			"Type": "AWS::S3::Bucket",
+			"Properties" : {
+				"AccessControl" : "Private",
+				"BucketName" : {"Fn::Join": [ "-", [{"Ref":"AWS::StackName"},"cleaned-events"] ]}
+			}
+		},
+
+		"S3BucketPolicyRawAccessLogs" : {
+			"Type" : "AWS::S3::BucketPolicy",
+			"DependsOn": "S3BucketRawAccessLogs",
+			"Properties" : {
+				"Bucket" : {"Ref":"S3BucketRawAccessLogs"},
+				"PolicyDocument": {
+					"Statement":[{
+						"Action":["s3:GetObject"],
+						"Effect":"Allow",
+						"Resource": { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "S3BucketRawAccessLogs" }, "/track*" ]]},
+						"Principal":"*"
+					}]
+				}
+			}
+		},
+
+		"KinesisEventStream": {
+			"Type": "AWS::Kinesis::Stream",
+			"Properties": {
+				"ShardCount": "1"
+			}
+		},
+
+		"CloudfrontDistribution" : {
+			"Type" : "AWS::CloudFront::Distribution",
+			"DependsOn": "S3BucketRawAccessLogs",
+			"Properties" : {
+				"DistributionConfig" : {
+					"Origins" : [ {
+						"Id" : "Custom Origin",
+						"DomainName" : { "Fn::GetAtt" : [ "S3BucketRawAccessLogs", "DomainName" ] },
+						"CustomOriginConfig" : {
+							"OriginProtocolPolicy" : "http-only"
+						}
+					}
+					],
+					"DefaultCacheBehavior" : {
+						"TargetOriginId" : "Custom Origin",
+						"ForwardedValues" : {
+							"QueryString" : "true"
+						},
+						"ViewerProtocolPolicy" : "allow-all"
+					},
+					"Comment" : {"Fn::Join":["", ["Cloudfront distribution for stack ", {"Ref":"AWS::StackName"}, " - 1"]]},
+					"Logging" : {
+						"Bucket" : {"Fn::GetAtt": ["S3BucketRawAccessLogs", "DomainName"]},
+						"Prefix": {"Fn::Join": ["/", ["AWSLogs", {"Ref": "AWS::AccountId"}, "CloudFront", "global", {"Ref":"AWS::StackName"}, ""]]}
+					},
+					"Enabled" : "true"
+				}
+			}
+		}
+	},
+
+	"Outputs": {
+		"Stream": {
+			"Value": {"Ref":"KinesisEventStream"}
+		},
+
+		"Pingback": {
+			"Value": {"Fn::GetAtt": ["CloudfrontDistribution", "DomainName"] }
+		},
+
+		"S3BucketRawAccessLogs": {
+			"Value": {"Ref":"S3BucketRawAccessLogs"}
+		},
+		
+		"S3BucketCleanedEvents": {
+			"Value": {"Ref":"S3BucketCleanedEvents"}
+		}
+	}
+}

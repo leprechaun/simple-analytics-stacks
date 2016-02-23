@@ -1,0 +1,303 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "Event processor for frontend data",
+
+	"Parameters": {
+		"S3BucketRawAccessLogs": {
+			"Type": "String",
+			"Description": "Bucket that stores access logs (see CFN output 'S3BucketRawAccessLogs')"
+		},
+
+		"S3BucketCleanedEvents": {
+			"Type": "String",
+			"Description": "Bucket that stores cleaned events (see CFN output 'S3BucketCleanedEvents')"
+		},
+
+		"KinesisEventStream": {
+			"Type": "String",
+			"Description": "Kinesis stream name (see CFN output 'Stream')"
+		},
+
+		"ElasticsearchEndpoint": {
+			"Type": "String",
+			"Description": "HTTP endpoint for Elasticsearch"
+		},
+
+		"Subnets": {
+			"Type": "List<AWS::EC2::Subnet::Id>",
+			"Description": "Subnets in which to launch the instance"
+		},
+
+		"VpcId": {
+			"Type": "AWS::EC2::VPC::Id",
+			"Description": "VPC in which to launch the instance"
+		},
+
+		"KeyName": {
+			"Type": "AWS::EC2::KeyPair::KeyName",
+			"Description": "SSH Keypair"
+		},
+
+		"ImageId": {
+			"Type": "String",
+			"Description": "AMI to use for the instance, AMZN linux and derivatives"
+		},
+
+		"InstanceType": {
+			"Type": "String",
+			"Description": "Size of the instance (t2.micro will likely suffice)"
+		}
+	},
+
+	"Resources": {
+		"InstanceGroup": {
+			"Type": "AWS::AutoScaling::AutoScalingGroup",
+			"UpdatePolicy": {
+				"AutoScalingRollingUpdate": {
+					"MaxBatchSize": "1",
+					"MinInstancesInService": "0"
+				}
+			},
+
+			"Properties": {
+				"AvailabilityZones": {"Fn::GetAZs": {"Ref":"AWS::Region"}},
+				"VPCZoneIdentifier": {
+					"Ref": "Subnets"
+				},
+				"HealthCheckGracePeriod": 600,
+				"LaunchConfigurationName": {
+					"Ref": "LaunchConfiguration"
+				},
+				"MinSize": "0",
+				"MaxSize": "1",
+				"DesiredCapacity": "1",
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": {"Fn::Join": ["-", [{"Ref":"AWS::StackName"}, "event-processor"]]},
+						"PropagateAtLaunch": true
+					}
+				]
+			}
+		},
+
+		"LaunchConfiguration": {
+			"Type": "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata": {
+			},
+			"Properties": {
+				"ImageId": {
+					"Ref": "ImageId"
+				},
+				"InstanceType": {
+					"Ref": "InstanceType"
+				},
+				"KeyName": {
+					"Ref": "KeyName"
+				},
+				"BlockDeviceMappings": [{
+					"DeviceName": "/dev/xvda",
+					"Ebs" : {
+						"VolumeSize": "100"
+					}
+				}],
+				"IamInstanceProfile": { "Ref": "IamInstanceProfile" },
+				"SecurityGroups": [
+					{
+						"Ref": "SecurityGroup"
+					}
+				],
+				"UserData": {
+					"Fn::Base64": {
+						"Fn::Join": [ "", [
+							"#!/bin/sh\n",
+
+							"aws_hostname=$(wget -q http://169.254.169.254/latest/meta-data/hostname -O -)\n",
+							"fqdn=${aws_hostname% *}\n",
+							"hostname=${aws_hostname%%.*}\n",
+							"ip=$(wget -q http://169.254.169.254/latest/meta-data/local-ipv4 -O -)\n",
+							"echo \"$ip $fqdn $hostname\" >> /etc/hosts\n",
+							"# something\n",
+
+							"# Install docker\n",
+							"yum install -y docker\n",
+
+							"service docker start\n",
+
+							"docker run -d --restart=always ",
+							"-e AWS_S3_BUCKET=", {"Ref":"S3BucketRawAccessLogs"}, " ",
+							"-e AWS_S3_REGION=", {"Ref":"AWS::Region"}, " ",
+							"-e AWS_S3_PREFIX=", "AWSLogs/", " ",
+							"-e AWS_KINESIS_STREAM=", {"Ref":"KinesisEventStream"}, " ",
+							"-e AWS_KINESIS_REGION=", {"Ref":"AWS::Region"}, " ",
+							"leprechaun/docker-logstash-input-s3-frontend-output-kinesis\n",
+
+							"docker run -d --restart=always ",
+							"-e AWS_S3_BUCKET=", {"Ref":"S3BucketCleanedEvents"}, " ",
+							"-e AWS_S3_REGION=", {"Ref":"AWS::Region"}, " ",
+							"-e AWS_S3_PREFIX=", "AWSLogs/", " ",
+							"-e AWS_KINESIS_STREAM=", {"Ref":"KinesisEventStream"}, " ",
+							"-e AWS_KINESIS_REGION=", {"Ref":"AWS::Region"}, " ",
+							"-e AWS_KINESIS_APPLICATION_NAME=", "logstash-input-kinesis-output-s3-archiver", " ",
+							"leprechaun/docker-logstash-input-kinesis-output-s3-archiver\n",
+
+							"docker run -d --restart=always ",
+							"-e ELASTICSEARCH_ENDPOINT=", {"Ref":"ElasticsearchEndpoint"}, " ",
+							"-e AWS_KINESIS_STREAM=", {"Ref":"KinesisEventStream"}, " ",
+							"-e AWS_KINESIS_REGION=", {"Ref":"AWS::Region"}, " ",
+							"-e AWS_KINESIS_APPLICATION_NAME=", "logstash-input-kinesis-output-es-indexer", " ",
+							"leprechaun/docker-logstash-input-kinesis-output-es-indexer\n"
+						] ]
+					}
+				}
+			}
+		},
+
+		"IamInstanceProfile": {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Properties": {
+				"Path": "/",
+				"Roles": [ {
+					"Ref": "IamRole"
+				} ]
+			}
+		},
+
+		"IamRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version" : "2012-10-17",
+					"Statement": [ {
+						"Effect": "Allow",
+						"Principal": {
+							"Service": [ "ec2.amazonaws.com" ]
+						},
+						"Action": [ "sts:AssumeRole" ]
+					} ]
+				},
+				"Path": "/",
+				"Policies": [ {
+					"PolicyName": "LogProcessor",
+					"PolicyDocument": {
+						"Version" : "2012-10-17",
+						"Statement": [
+							{
+								"Effect": "Allow",
+								"Action": [
+									"s3:Get*",
+									"s3:List*",
+									"s3:Put*",
+									"s3:Delete*"
+								],
+								"Resource": [
+									{"Fn::Join":[ "", ["arn:aws:s3:::", {"Ref":"S3BucketRawAccessLogs"}]]},
+									{"Fn::Join":[ "", ["arn:aws:s3:::", {"Ref":"S3BucketRawAccessLogs"}, "/*"]]}
+								]
+							},
+
+							{
+								"Effect": "Allow",
+								"Action": [
+									"s3:Get*",
+									"s3:List*",
+									"s3:Put*",
+									"s3:Delete*"
+								],
+								"Resource": [
+									{"Fn::Join":[ "", ["arn:aws:s3:::", {"Ref":"S3BucketCleanedEvents"}]]},
+									{"Fn::Join":[ "", ["arn:aws:s3:::", {"Ref":"S3BucketCleanedEvents"}, "/*"]]}
+								]
+							},
+
+							{
+								"Effect": "Allow",
+								"Action": [
+									"kinesis:PutRecord",
+									"kinesis:PutRecords",
+									"kinesis:DescribeStream",
+									"kinesis:ListStreams",
+									"kinesis:GetShardIterator",
+									"kinesis:GetRecords"
+								],
+								"Resource": [
+									{"Fn::Join": [ "", ["arn:aws:kinesis", ":", {"Ref":"AWS::Region"}, ":", {"Ref":"AWS::AccountId"}, ":", "stream/", {"Ref":"KinesisEventStream"}]]}
+								]
+							},
+
+							{
+								"Sid": "AllowWriteToCloudWatch",
+								"Action": [
+									"cloudwatch:PutMetricData"
+								],
+								"Effect": "Allow",
+								"Resource": [
+									"*"
+								]
+							},
+
+							{
+								"Sid": "AllowReadWriteOnDynamoDB",
+								"Action": [
+									"dynamodb:BatchGetItem",
+									"dynamodb:BatchWriteItem",
+									"dynamodb:CreateTable",
+									"dynamodb:DescribeStream",
+									"dynamodb:DescribeTable",
+									"dynamodb:GetItem",
+									"dynamodb:GetRecords",
+									"dynamodb:GetShardIterator",
+									"dynamodb:ListStreams",
+									"dynamodb:ListTables",
+									"dynamodb:PutItem",
+									"dynamodb:Query",
+									"dynamodb:Scan",
+									"dynamodb:UpdateItem",
+									"dynamodb:UpdateTable"
+								],
+								"Effect": "Allow",
+								"Resource": [
+									{"Fn::Join": [ ":", ["arn:aws:dynamodb", "us-east-1", {"Ref":"AWS::AccountId"}, "table/logstash*"]]},
+									{"Fn::Join": [ ":", ["arn:aws:dynamodb", "us-west-1", {"Ref":"AWS::AccountId"}, "table/logstash*"]]},
+									{"Fn::Join": [ ":", ["arn:aws:dynamodb", "us-west-2", {"Ref":"AWS::AccountId"}, "table/logstash*"]]},
+									{"Fn::Join": [ ":", ["arn:aws:dynamodb", "eu-west-1", {"Ref":"AWS::AccountId"}, "table/logstash*"]]},
+									{"Fn::Join": [ ":", ["arn:aws:dynamodb", "eu-central-1", {"Ref":"AWS::AccountId"}, "table/logstash*"]]},
+									{"Fn::Join": [ ":", ["arn:aws:dynamodb", "ap-northeast-1", {"Ref":"AWS::AccountId"}, "table/logstash*"]]},
+									{"Fn::Join": [ ":", ["arn:aws:dynamodb", "ap-southeast-1", {"Ref":"AWS::AccountId"}, "table/logstash*"]]},
+									{"Fn::Join": [ ":", ["arn:aws:dynamodb", "ap-southeast-2", {"Ref":"AWS::AccountId"}, "table/logstash*"]]}
+								]
+							}
+						]
+					}
+				}	]
+			}
+		},
+
+		"SecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Allow SSH and ICMP",
+				"SecurityGroupIngress": [
+					{
+						"CidrIp": "0.0.0.0/0",
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22"
+					},
+					{
+						"CidrIp": "0.0.0.0/0",
+						"IpProtocol": "icmp",
+						"FromPort": "-1",
+						"ToPort": "-1"
+					}
+				],
+				"VpcId": {
+					"Ref": "VpcId"
+				}
+			}
+		}
+	},
+
+	"Outputs": {
+	}
+}
