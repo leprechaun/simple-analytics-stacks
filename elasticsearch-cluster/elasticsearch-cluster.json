@@ -1,0 +1,89 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "Event processor for frontend data",
+
+	"Parameters": {
+		"DomainName": {
+			"Type": "String",
+			"Description": "A name for the cluster",
+			"Default": "example-es-domain"
+		},
+
+		"EBSSizes": {
+			"Type": "Number",
+			"Default": "100",
+			"Description": "Size of the EBS disks ($DATA_NODES * $EBSSizes / 2)"
+		},
+
+		"MasterNodeCount": {
+			"Type": "Number",
+			"Default": "3",
+			"Description": "Number of dedicated master (recommended: 3)"
+		},
+
+		"MasterNodeType": {
+			"Type": "String",
+			"Default": "m3.medium.elasticsearch",
+			"Description": "Master node instance type"
+		},
+
+		"DataNodeCount": {
+			"Type": "Number",
+			"Default": "2",
+			"Description": "Number nodes that hold data"
+		},
+
+		"DataNodeType": {
+			"Type": "String",
+			"Default": "r3.large.elasticsearch",
+			"Description": "Data node instance type"
+		}
+	},
+
+	"Resources": {
+		"ElasticsearchDomain": {
+			"Type": "AWS::Elasticsearch::Domain",
+			"Properties": {
+				"DomainName": {"Ref":"DomainName"},
+				"ElasticsearchClusterConfig": {
+					"DedicatedMasterEnabled": "true",
+					"InstanceCount": {"Ref":"DataNodeCount"},
+					"ZoneAwarenessEnabled": "true",
+					"InstanceType": {"Ref":"DataNodeType"},
+					"DedicatedMasterType": {"Ref":"MasterNodeType"},
+					"DedicatedMasterCount": {"Ref":"MasterNodeCount"}
+				},
+				"EBSOptions": {
+					"EBSEnabled": true,
+					"Iops": 0,
+					"VolumeSize": {"Ref":"EBSSizes"},
+					"VolumeType": "gp2"
+				},
+				"SnapshotOptions": {
+					"AutomatedSnapshotStartHour": "0"
+				},
+				"AccessPolicies": {
+					"Version": "2012-10-17",
+					"Statement": [{
+						"Effect": "Allow",
+						"Principal": {
+							"AWS": "*"
+						},
+						"Action": "es:*",
+						"Resource": "*"
+					}]
+				},
+				"AdvancedOptions": {
+					"rest.action.multi.allow_explicit_index": "true"
+				},
+				"Tags": [{
+					"Key": "DomainName",
+					"Value": {"Ref":"DomainName"}
+				}]
+			}
+		}
+	},
+
+	"Outputs": {
+	}
+}

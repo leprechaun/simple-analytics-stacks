@@ -101,10 +101,11 @@ $ aws cloudformation create-stack \
 
 ### Elasticsearch
 
-For the time being, the provisioning and securing of an Elasticsearch cluster
-is left as an exercise for the reader. An easy alternative is to use AWS's
-Elasticsearch service. While it's not perfect, it remains much easier than
-hosting your own.
+Cloudformation templates are provided for the AWS Elasticsearch service.
+
+The ES service has one major drawback being that it does not support VPCs. Which
+means that your cluster is on the public internet and must be protected by
+a firewall (or IAM permissions, at the cost of patching all your clients).
 
 ## Thanks
 
