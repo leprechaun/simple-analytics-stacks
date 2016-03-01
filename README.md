@@ -70,12 +70,18 @@ This repository contains 2 AWS Cloudformation templates.
 First is the data capture stack, which provides the Cloudfront distribution,
 AWS Kinesis stream and AWS S3 buckets.
 
-It can be launched with the AWS command-line tools.
+It can be launched with the AWS command-line tools. Or with set of helper scripts
+from `bash-my-aws`. To download them easily, just run `git submodule init && git submodule update`.
+
+```shell
+$ source bash-my-aws/lib/stack-functions
+$ stack-create ${MY_ANALYTICS_STACK_NAME} cloudfront-buckets-and-stream/cloudfront-buckets-and-stream.json
+```
 
 ```shell
 $ aws cloudformation create-stack \
  --stack-name $MY_ANALYTICS_STACK_NAME \
- --template-body file://cloudfront-buckets-and-stream.json \
+ --template-body file://cloudfront-buckets-and-stream/cloudfront-buckets-and-stream.json \
  --capabilities CAPABILITY_IAM
 ```
 
@@ -92,10 +98,16 @@ Second is an AutoScalingGroup that runs 3 docker containers.
 It can be launched with the AWS command-line tools.
 
 ```shell
+$ source bash-my-aws/lib/stack-functions
+$ stack-create ${MY_ANALYTICS_STACK_NAME} event-processor/event-processor.json event-process/event-processor.params.json
+```
+
+
+```shell
 $ aws cloudformation create-stack \
  --stack-name $MY_ANALYTICS_STACK_NAME \
- --template-body file://event-processor.json \
- --parameters file://event-processor.params.json \
+ --template-body file://event-processor/event-processor.json \
+ --parameters file://event-processor/event-processor.params.json \
  --capabilities CAPABILITY_IAM
 ```
 
@@ -106,6 +118,23 @@ Cloudformation templates are provided for the AWS Elasticsearch service.
 The ES service has one major drawback being that it does not support VPCs. Which
 means that your cluster is on the public internet and must be protected by
 a firewall (or IAM permissions, at the cost of patching all your clients).
+
+It's configured for high-availability, which includes 3 dedicated master nodes,
+so watch out for unexpected costs.
+
+```shell
+$ source bash-my-aws/lib/stack-functions
+$ stack-create ${MY_ANALYTICS_STACK_NAME} elasticsearch-cluster/elasticsearch-cluster.json [elasticsearch-cluster/elasticsearch-cluster.params.json]
+```
+
+```shell
+$ aws cloudformation create-stack \
+ --stack-name $MY_ANALYTICS_STACK_NAME \
+ --template-body file://elasticsearch-cluster/elasticsearch-cluster.json \
+[ --parameters file://elasticsearch-cluster/elasticsearch-cluster.params.json \]
+ --capabilities CAPABILITY_IAM
+```
+
 
 ## Thanks
 
