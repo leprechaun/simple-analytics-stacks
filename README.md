@@ -63,78 +63,27 @@ data will be available for visualisations and analysis through Kibana.
 
 ## Deployment
 
-This repository contains 2 AWS Cloudformation templates.
+This repository contains 3 AWS Cloudformation templates.
+
+The `bash-my-aws` bash helpers for AWS are included as a git submodule.
+Run `git submodule init && git submodule update` to pull a copy.
+Then, `source bash-my-aws/lib/stack-functions`
+
+Or don't, and just use the python based aws command line tools directly.
+
+### cloudfront-buckets-and-stream
+
+[cloudfront-buckets-and-stream](cloudfront-buckets-and-stream/README.md)
+
+### event-processor
+
+[event-processor](event-processor/README.md)
+
+### elasticsearch
+
+[elasticsearch-cluster](elasticsearch-cluster/README.md)
 
 ### Data Capture
-
-First is the data capture stack, which provides the Cloudfront distribution,
-AWS Kinesis stream and AWS S3 buckets.
-
-It can be launched with the AWS command-line tools. Or with set of helper scripts
-from `bash-my-aws`. To download them easily, just run `git submodule init && git submodule update`.
-
-```shell
-$ source bash-my-aws/lib/stack-functions
-$ stack-create ${MY_ANALYTICS_STACK_NAME} cloudfront-buckets-and-stream/cloudfront-buckets-and-stream.json
-```
-
-```shell
-$ aws cloudformation create-stack \
- --stack-name $MY_ANALYTICS_STACK_NAME \
- --template-body file://cloudfront-buckets-and-stream/cloudfront-buckets-and-stream.json \
- --capabilities CAPABILITY_IAM
-```
-
-An example of the parameters is provided.
-
-### Data ingestion
-
-Second is an AutoScalingGroup that runs 3 docker containers.
-
-* Access log reader (https://hub.docker.com/r/leprechaun/docker-logstash-input-s3-frontend-output-kinesis/)
-* S3 archiver (https://hub.docker.com/r/leprechaun/docker-logstash-input-kinesis-output-s3-archiver/)
-* Elasticsearch indexer (https://hub.docker.com/r/leprechaun/docker-logstash-input-kinesis-output-es-indexer/)
-
-It can be launched with the AWS command-line tools.
-
-```shell
-$ source bash-my-aws/lib/stack-functions
-$ stack-create ${MY_ANALYTICS_STACK_NAME} event-processor/event-processor.json event-process/event-processor.params.json
-```
-
-
-```shell
-$ aws cloudformation create-stack \
- --stack-name $MY_ANALYTICS_STACK_NAME \
- --template-body file://event-processor/event-processor.json \
- --parameters file://event-processor/event-processor.params.json \
- --capabilities CAPABILITY_IAM
-```
-
-### Elasticsearch
-
-Cloudformation templates are provided for the AWS Elasticsearch service.
-
-The ES service has one major drawback being that it does not support VPCs. Which
-means that your cluster is on the public internet and must be protected by
-a firewall (or IAM permissions, at the cost of patching all your clients).
-
-It's configured for high-availability, which includes 3 dedicated master nodes,
-so watch out for unexpected costs.
-
-```shell
-$ source bash-my-aws/lib/stack-functions
-$ stack-create ${MY_ANALYTICS_STACK_NAME} elasticsearch-cluster/elasticsearch-cluster.json [elasticsearch-cluster/elasticsearch-cluster.params.json]
-```
-
-```shell
-$ aws cloudformation create-stack \
- --stack-name $MY_ANALYTICS_STACK_NAME \
- --template-body file://elasticsearch-cluster/elasticsearch-cluster.json \
-[ --parameters file://elasticsearch-cluster/elasticsearch-cluster.params.json \]
- --capabilities CAPABILITY_IAM
-```
-
 
 ## Thanks
 
