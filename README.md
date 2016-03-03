@@ -75,15 +75,14 @@ Or don't, and just use the python based aws command line tools directly.
 
 [cloudfront-buckets-and-stream](cloudfront-buckets-and-stream/README.md)
 
-### event-processor
-
-[event-processor](event-processor/README.md)
-
 ### elasticsearch
 
 [elasticsearch-cluster](elasticsearch-cluster/README.md)
 
-### Data Capture
+### event-processor
+
+[event-processor](event-processor/README.md)
+
 
 ## Thanks
 
