@@ -60,7 +60,6 @@
 			},
 
 			"Properties": {
-				"AvailabilityZones": {"Fn::GetAZs": {"Ref":"AWS::Region"}},
 				"VPCZoneIdentifier": {
 					"Ref": "Subnets"
 				},
