@@ -2,6 +2,14 @@
 	"AWSTemplateFormatVersion": "2010-09-09",
 	"Description": "Cloudfront distribution, S3 bucket and Kinesis streams",
 
+	"Parameters": {
+		"TrackingTarget": {
+			"Type": "String",
+			"Description": "Path to the tracking gif (make that path specifically public)",
+			"Default": "/track.gif"
+		}
+	},
+
 	"Resources": {
 		"S3BucketRawAccessLogs": {
 			"Type": "AWS::S3::Bucket",
@@ -28,7 +36,7 @@
 					"Statement":[{
 						"Action":["s3:GetObject"],
 						"Effect":"Allow",
-						"Resource": { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "S3BucketRawAccessLogs" }, "/track*" ]]},
+						"Resource": { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "S3BucketRawAccessLogs" }, {"Ref":"TrackingTarget"} ]]},
 						"Principal":"*"
 					}]
 				}
